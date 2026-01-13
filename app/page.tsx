@@ -18,18 +18,40 @@ export default function Home() {
   const [loadingData, setLoadingData] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+    const timeoutId = setTimeout(() => {
+      if (isMounted && !authChecked) {
+        console.warn('Auth check timeout - proceeding anyway')
+        setAuthChecked(true)
+        setLoadingData(false)
+      }
+    }, 10000) // 10초 타임아웃
+
     async function checkAuth() {
       if (!hasSupabaseEnv()) {
         console.warn('Supabase environment variables not available')
+        if (isMounted) {
+          setAuthChecked(true) // 환경 변수가 없어도 UI는 표시
+          setLoadingData(false)
+        }
         return
       }
 
       try {
         const supabase = createClient()
+        
+        // 타임아웃이 있는 Promise로 감싸기
+        const authPromise = supabase.auth.getUser()
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 8000)
+        )
+        
         const {
           data: { user },
           error: authError,
-        } = await supabase.auth.getUser()
+        } = await Promise.race([authPromise, timeoutPromise]) as any
+
+        if (!isMounted) return
 
         if (authError) {
           console.error('Auth error:', authError)
@@ -44,14 +66,29 @@ export default function Home() {
           setAuthChecked(true)
           await loadCounts(user.id)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Auth check error:', error)
-        // 에러 발생 시에도 로그인 페이지로 리다이렉트
-        router.push('/login')
+        if (isMounted) {
+          // 타임아웃이나 네트워크 에러 시에도 UI는 표시
+          if (error?.message === 'Auth timeout' || error?.message?.includes('network')) {
+            setAuthChecked(true)
+            setLoadingData(false)
+          } else {
+            // 다른 에러는 로그인 페이지로
+            router.push('/login')
+          }
+        }
+      } finally {
+        clearTimeout(timeoutId)
       }
     }
 
     checkAuth()
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
   }, [router])
 
   async function loadCounts(userId: string) {

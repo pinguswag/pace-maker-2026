@@ -15,7 +15,24 @@ export default function TodayTab() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadTodayItems()
+    let isMounted = true
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('TodayTab load timeout')
+        setLoading(false)
+      }
+    }, 15000) // 15초 타임아웃
+
+    loadTodayItems().finally(() => {
+      if (isMounted) {
+        clearTimeout(timeoutId)
+      }
+    })
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   async function loadTodayItems() {
@@ -62,6 +79,7 @@ export default function TodayTab() {
       }
     } catch (error) {
       console.error('Error loading today items:', error)
+      // 에러 발생 시에도 로딩 상태 해제
     } finally {
       setLoading(false)
     }

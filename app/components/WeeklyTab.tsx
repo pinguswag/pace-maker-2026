@@ -167,7 +167,24 @@ export default function WeeklyTab() {
   }, [activeId, weeklyItems])
 
   useEffect(() => {
-    loadData()
+    let isMounted = true
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('WeeklyTab load timeout')
+        setLoading(false)
+      }
+    }, 15000) // 15초 타임아웃
+
+    loadData().finally(() => {
+      if (isMounted) {
+        clearTimeout(timeoutId)
+      }
+    })
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   async function loadData() {
@@ -259,6 +276,7 @@ export default function WeeklyTab() {
       }
     } catch (error) {
       console.error('Error loading data:', error)
+      // 에러 발생 시에도 로딩 상태 해제
     } finally {
       setLoading(false)
     }
