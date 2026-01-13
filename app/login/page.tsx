@@ -1,18 +1,49 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient, hasSupabaseEnv } from '@/lib/supabase/client'
 import EnvCheck from '../components/EnvCheck'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(false)
+
+  // URL 파라미터에서 에러 메시지 확인
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+    
+    if (errorParam) {
+      let errorMessage = '로그인에 실패했습니다.'
+      
+      if (errorParam === 'oauth_error') {
+        errorMessage = '소셜 로그인에 실패했습니다. 다시 시도해주세요.'
+      } else if (errorParam === 'session_exchange_failed') {
+        errorMessage = '인증 세션 생성에 실패했습니다. 다시 시도해주세요.'
+      }
+      
+      if (errorDescription) {
+        errorMessage += ` (${errorDescription})`
+      }
+      
+      setError(errorMessage)
+      
+      // 에러 파라미터 제거
+      if (typeof window !== 'undefined') {
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('error')
+        newUrl.searchParams.delete('error_description')
+        window.history.replaceState({}, '', newUrl.toString())
+      }
+    }
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -65,25 +96,41 @@ export default function LoginPage() {
     try {
       const supabase = createClient()
       
-      // 모바일 브라우저 호환성을 위한 리다이렉트 URL 생성
-      const redirectTo = typeof window !== 'undefined' 
-        ? `${window.location.origin}/auth/callback`
-        : '/auth/callback'
+      // 모바일 브라우저 및 카카오톡 인앱 브라우저 호환성을 위한 리다이렉트 URL 생성
+      let redirectTo: string
+      
+      if (typeof window !== 'undefined') {
+        // 절대 URL 사용 (카카오톡 인앱 브라우저 호환)
+        const origin = window.location.origin
+        redirectTo = `${origin}/auth/callback`
+        
+        // 디버깅용 로그
+        console.log('OAuth redirect URL:', redirectTo)
+        console.log('Current origin:', origin)
+      } else {
+        redirectTo = '/auth/callback'
+      }
       
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo,
-          // 모바일 브라우저 호환성
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
+          // 카카오톡 인앱 브라우저 호환성
+          skipBrowserRedirect: false,
         },
       })
 
-      if (oauthError) throw oauthError
+      if (oauthError) {
+        console.error('OAuth error:', oauthError)
+        throw oauthError
+      }
+      
       // OAuth는 리다이렉트되므로 여기서는 아무것도 하지 않음
+      // data.url이 있으면 리다이렉트가 시작됨
+      if (data?.url) {
+        // 리다이렉트는 Supabase가 자동으로 처리
+        window.location.href = data.url
+      }
     } catch (err: any) {
       console.error('OAuth login error:', err)
       setError(err.message || '소셜 로그인에 실패했습니다.')
@@ -212,5 +259,19 @@ export default function LoginPage() {
       </div>
     </div>
     </EnvCheck>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <EnvCheck>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div>로딩 중...</div>
+        </div>
+      </EnvCheck>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
