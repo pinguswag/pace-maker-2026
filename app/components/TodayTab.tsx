@@ -22,9 +22,19 @@ export default function TodayTab() {
     const supabase = createClient()
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) return
+    if (authError) {
+      console.error('Auth error in TodayTab:', authError)
+      setLoading(false)
+      return
+    }
+
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
     setLoading(true)
 

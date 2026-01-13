@@ -64,16 +64,28 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient()
+      
+      // 모바일 브라우저 호환성을 위한 리다이렉트 URL 생성
+      const redirectTo = typeof window !== 'undefined' 
+        ? `${window.location.origin}/auth/callback`
+        : '/auth/callback'
+      
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo,
+          // 모바일 브라우저 호환성
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       })
 
       if (oauthError) throw oauthError
       // OAuth는 리다이렉트되므로 여기서는 아무것도 하지 않음
     } catch (err: any) {
+      console.error('OAuth login error:', err)
       setError(err.message || '소셜 로그인에 실패했습니다.')
       setOauthLoading(null)
     }

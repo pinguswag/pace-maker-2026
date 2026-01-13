@@ -20,6 +20,7 @@ export default function Home() {
   useEffect(() => {
     async function checkAuth() {
       if (!hasSupabaseEnv()) {
+        console.warn('Supabase environment variables not available')
         return
       }
 
@@ -27,7 +28,15 @@ export default function Home() {
         const supabase = createClient()
         const {
           data: { user },
+          error: authError,
         } = await supabase.auth.getUser()
+
+        if (authError) {
+          console.error('Auth error:', authError)
+          // 인증 에러가 발생하면 로그인 페이지로
+          router.push('/login')
+          return
+        }
 
         if (!user) {
           router.push('/login')
@@ -37,6 +46,8 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Auth check error:', error)
+        // 에러 발생 시에도 로그인 페이지로 리다이렉트
+        router.push('/login')
       }
     }
 
