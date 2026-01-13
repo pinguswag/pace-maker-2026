@@ -6,16 +6,12 @@ import Link from 'next/link'
 import Navigation from '../components/Navigation'
 import EnvCheck from '../components/EnvCheck'
 import { createClient, hasSupabaseEnv } from '@/lib/supabase/client'
-import type { Database } from '@/lib/database.types'
-
-type Project = Database['public']['Tables']['projects']['Row']
-type Task = Database['public']['Tables']['tasks']['Row']
 
 export default function GuidePage() {
   const router = useRouter()
   const [authChecked, setAuthChecked] = useState(false)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [projects, setProjects] = useState<{ id: string }[]>([])
+  const [tasks, setTasks] = useState<{ id: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

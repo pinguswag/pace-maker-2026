@@ -10,10 +10,15 @@ import type { Database } from '@/lib/database.types'
 
 type WeeklyPlan = Database['public']['Tables']['weekly_plans']['Row']
 type WeeklyReview = Database['public']['Tables']['weekly_reviews']['Row']
+type WeeklyPlanSummary = {
+  id: string
+  week_key: string
+  week_start_date: string
+}
 
 export default function ReviewPage() {
   const router = useRouter()
-  const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([])
+  const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlanSummary[]>([])
   const [selectedWeeklyPlanId, setSelectedWeeklyPlanId] = useState<string | null>(null)
   const [review, setReview] = useState<WeeklyReview | null>(null)
   const [stats, setStats] = useState({
@@ -61,6 +66,7 @@ export default function ReviewPage() {
         .eq('user_id', userId)
         .order('week_start_date', { ascending: false })
         .limit(12)
+        .returns<WeeklyPlanSummary[]>()
 
       if (error) throw error
 
