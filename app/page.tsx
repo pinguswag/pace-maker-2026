@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Navigation from './components/Navigation'
 import WeeklyTab from './components/WeeklyTab'
 import TodayTab from './components/TodayTab'
@@ -12,6 +13,9 @@ export default function Home() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'weekly' | 'today'>('weekly')
   const [authChecked, setAuthChecked] = useState(false)
+  const [projectCount, setProjectCount] = useState(0)
+  const [taskCount, setTaskCount] = useState(0)
+  const [loadingData, setLoadingData] = useState(true)
 
   useEffect(() => {
     async function checkAuth() {
@@ -29,6 +33,7 @@ export default function Home() {
           router.push('/login')
         } else {
           setAuthChecked(true)
+          await loadCounts(user.id)
         }
       } catch (error) {
         console.error('Auth check error:', error)
@@ -37,6 +42,33 @@ export default function Home() {
 
     checkAuth()
   }, [router])
+
+  async function loadCounts(userId: string) {
+    const supabase = createClient()
+    setLoadingData(true)
+
+    try {
+      // 프로젝트 개수 확인
+      const { count: projectCountData } = await supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'active')
+
+      // 작업 개수 확인
+      const { count: taskCountData } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+
+      setProjectCount(projectCountData || 0)
+      setTaskCount(taskCountData || 0)
+    } catch (error) {
+      console.error('Error loading counts:', error)
+    } finally {
+      setLoadingData(false)
+    }
+  }
 
   if (!hasSupabaseEnv()) {
     return <EnvCheck>{null}</EnvCheck>
@@ -50,11 +82,43 @@ export default function Home() {
     )
   }
 
+  const showEmptyState = !loadingData && projectCount === 0
+
   return (
     <EnvCheck>
       <div className="min-h-screen bg-gray-50">
         <Navigation />
         <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          {/* Empty State 가이드 */}
+          {showEmptyState && (
+            <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                    페이스 메이커 시작하기
+                  </h2>
+                  <p className="text-gray-600 mb-4">
+                    프로젝트를 만들어 작업을 시작해보세요.
+                  </p>
+                  <div className="flex gap-3">
+                    <Link
+                      href="/projects/new"
+                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    >
+                      첫 프로젝트 만들기
+                    </Link>
+                    <Link
+                      href="/guide"
+                      className="px-4 py-2 bg-white text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                    >
+                      전체 가이드 보기
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mb-6">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
