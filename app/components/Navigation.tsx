@@ -57,6 +57,12 @@ export default function Navigation() {
               >
                 리뷰
               </Link>
+              <Link
+                href="/guide"
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                가이드
+              </Link>
             </div>
           </div>
           {!loading && user && (
