@@ -85,7 +85,7 @@ export default function TodayTab() {
     }
   }
 
-  async function handleComplete(itemId: string, taskId: string) {
+  async function handleToggle(itemId: string, taskId: string, currentIsDone: boolean) {
     const supabase = createClient()
     const {
       data: { user },
@@ -94,52 +94,66 @@ export default function TodayTab() {
     if (!user) return
 
     try {
-      // 이미 완료된 작업인지 확인
-      const { data: task } = await supabase
-        .from('tasks')
-        .select('is_done')
-        .eq('id', taskId)
-        .single()
-
-      if (task?.is_done) {
-        // 이미 완료된 작업이면 로그를 생성하지 않음
-        return
-      }
-
-      // 작업 완료 처리
       const now = new Date().toISOString()
 
-      // 1. 작업 완료 처리
-      await supabase
-        .from('tasks')
-        .update({
-          is_done: true,
-          done_at: now,
-          updated_at: now,
-        })
-        .eq('id', taskId)
-        .eq('user_id', user.id)
+      if (currentIsDone) {
+        // 완료 해제: is_done을 false로, done_at을 null로
+        await supabase
+          .from('tasks')
+          .update({
+            is_done: false,
+            done_at: null,
+            updated_at: now,
+          })
+          .eq('id', taskId)
+          .eq('user_id', user.id)
 
-      // 2. 완료 로그 추가 (DB 기본값 사용, unique constraint로 중복 방지)
-      // occurred_at과 occurred_date는 DB 기본값 사용 (타임존 안전)
-      const { error: logError } = await supabase
-        .from('task_logs')
-        .insert({
-          user_id: user.id,
-          task_id: taskId,
-          action: 'complete',
-          // occurred_at과 occurred_date는 명시하지 않음 - DB 기본값 사용
-        })
+        // 완료 해제 로그 추가 (선택사항)
+        const { error: logError } = await supabase
+          .from('task_logs')
+          .insert({
+            user_id: user.id,
+            task_id: taskId,
+            action: 'uncomplete',
+            // occurred_at과 occurred_date는 DB 기본값 사용
+          })
 
-      // Unique constraint violation은 무시 (이미 오늘 로그가 있는 경우)
-      if (logError && logError.code !== '23505') {
-        throw logError
+        // Unique constraint violation은 무시
+        if (logError && logError.code !== '23505') {
+          throw logError
+        }
+      } else {
+        // 완료 처리: is_done을 true로, done_at을 현재 시간으로
+        await supabase
+          .from('tasks')
+          .update({
+            is_done: true,
+            done_at: now,
+            updated_at: now,
+          })
+          .eq('id', taskId)
+          .eq('user_id', user.id)
+
+        // 완료 로그 추가 (DB 기본값 사용, unique constraint로 중복 방지)
+        const { error: logError } = await supabase
+          .from('task_logs')
+          .insert({
+            user_id: user.id,
+            task_id: taskId,
+            action: 'complete',
+            // occurred_at과 occurred_date는 명시하지 않음 - DB 기본값 사용
+          })
+
+        // Unique constraint violation은 무시 (이미 오늘 로그가 있는 경우)
+        if (logError && logError.code !== '23505') {
+          throw logError
+        }
       }
 
       // 목록 새로고침
       await loadTodayItems()
     } catch (error) {
-      console.error('Error completing task:', error)
+      console.error('Error toggling task:', error)
     }
   }
 
@@ -173,7 +187,7 @@ export default function TodayTab() {
               <input
                 type="checkbox"
                 checked={isDone}
-                onChange={() => handleComplete(item.id, item.task_id)}
+                onChange={() => handleToggle(item.id, item.task_id, isDone)}
                 className="w-5 h-5"
               />
               <div className="flex-1">
