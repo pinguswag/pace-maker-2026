@@ -220,7 +220,19 @@ export default function ProjectDetailPage() {
             <Link href="/projects" className="text-blue-500 hover:underline mb-2 block">
               ← 프로젝트 목록으로
             </Link>
-            <h1 className="text-2xl font-bold">{project.name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold">{project.name}</h1>
+              {(() => {
+                const totalTasks = tasks.length
+                const completedTasks = tasks.filter((t) => t.is_done).length
+                const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+                return (
+                  <span className="text-sm text-gray-500 font-medium">
+                    [{completionRate}% ({completedTasks}/{totalTasks})]
+                  </span>
+                )
+              })()}
+            </div>
             {project.description && (
               <p className="text-gray-600 mt-2">{project.description}</p>
             )}

@@ -8,10 +8,15 @@ import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/database.types'
 
 type Project = Database['public']['Tables']['projects']['Row']
+type ProjectWithStats = Project & {
+  totalTasks: number
+  completedTasks: number
+  completionRate: number
+}
 
 export default function ProjectsPage() {
   const router = useRouter()
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<ProjectWithStats[]>([])
   const [loading, setLoading] = useState(true)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -44,7 +49,7 @@ export default function ProjectsPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase
+      const { data: projectsData, error } = await supabase
         .from('projects')
         .select('*')
         .eq('user_id', user.id)
@@ -52,7 +57,41 @@ export default function ProjectsPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      if (data) setProjects(data)
+
+      if (projectsData) {
+        // 각 프로젝트에 대한 통계 계산
+        const projectsWithStats = await Promise.all(
+          projectsData.map(async (project) => {
+            // 전체 작업 수
+            const { count: totalTasks } = await supabase
+              .from('tasks')
+              .select('*', { count: 'exact', head: true })
+              .eq('project_id', project.id)
+              .eq('user_id', user.id)
+
+            // 완료된 작업 수
+            const { count: completedTasks } = await supabase
+              .from('tasks')
+              .select('*', { count: 'exact', head: true })
+              .eq('project_id', project.id)
+              .eq('user_id', user.id)
+              .eq('is_done', true)
+
+            const total = totalTasks || 0
+            const completed = completedTasks || 0
+            const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
+
+            return {
+              ...project,
+              totalTasks: total,
+              completedTasks: completed,
+              completionRate,
+            } as ProjectWithStats
+          })
+        )
+
+        setProjects(projectsWithStats)
+      }
     } catch (error) {
       console.error('Error loading projects:', error)
     } finally {
@@ -97,7 +136,12 @@ export default function ProjectsPage() {
                 href={`/projects/${project.id}`}
                 className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
               >
-                <h2 className="text-xl font-semibold mb-2">{project.name}</h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xl font-semibold">{project.name}</h2>
+                  <span className="text-sm text-gray-500 font-medium">
+                    [{project.completionRate}% ({project.completedTasks}/{project.totalTasks})]
+                  </span>
+                </div>
                 {project.description && (
                   <p className="text-gray-600 text-sm">{project.description}</p>
                 )}
